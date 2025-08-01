@@ -14,17 +14,31 @@ const Model = struct {
     }
 
     pub fn eventHandler(userdata: *anyopaque, ctx: *vxfw.EventContext, event: vxfw.Event) anyerror!void {
-        _ = userdata;
+        const self: *Model = @ptrCast(@alignCast(userdata));
 
         switch(event) {
             .key_press => |key| {
-                if (key.matches('c', .{ .ctrl = true })) {
+                if (key.matches('c', .{ .ctrl = true }) or key.matches('q', .{})) {
                     ctx.quit = true;
                     return;
+                } else if (key.matches('h', .{})) {
+                    self.counter = self.counter + 1;
+                } else if (key.matches('l', .{})) {
+                    self.counter = self.counter - 1;
+                } else if (key.matches('j', .{})) {
+                    if (self.counter + 10 < 100) {
+                    self.counter = self.counter + 10;
+                    }
+                } else if (key.matches('k', .{})) {
+                    if (self.counter - 10 > 10) {
+                    self.counter = self.counter - 10;
+                    }
                 }
             },
             else => {},
         }
+
+        ctx.consumeAndRedraw();
     }
 
     pub fn drawFn(userdata: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
@@ -60,7 +74,7 @@ pub fn main() !void {
     const model = try allocator.create(Model);
     defer allocator.destroy(model);
     model.* = .{
-        .counter = 0
+        .counter = 10
     };
 
     try app.run(model.widget(), .{});
