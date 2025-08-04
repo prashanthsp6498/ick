@@ -4,6 +4,8 @@ const vxfw = vaxis.vxfw;
 
 const Model = struct {
     counter: i32,
+    texts: std.ArrayList([]u8),
+    allocator: std.mem.Allocator,
 
     pub fn widget(self: *Model) vxfw.Widget {
         return .{
@@ -33,6 +35,8 @@ const Model = struct {
                     if (self.counter - 10 > 10) {
                     self.counter = self.counter - 10;
                     }
+                } else if (key.matches('e', .{})) {
+                    try self.texts.append(try std.fmt.allocPrint(self.allocator, "This is {d} line", .{self.counter}));
                 }
             },
             else => {},
@@ -44,13 +48,32 @@ const Model = struct {
     pub fn drawFn(userdata: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
         const self: *Model = @ptrCast(@alignCast(userdata));
 
-        const text = try std.fmt.allocPrint(ctx.arena, "Total count is: {d}", .{self.counter});
+        const text = try std.fmt.allocPrint(ctx.arena, "Total text count is: {d}", .{self.texts.items.len});
         const text_w: vxfw.Text = .{.text = text};
 
         const text_subSurface: vxfw.SubSurface = .{.origin = .{.col = 0, .row = 0}, .surface = try text_w.draw(ctx)};
-        const childrens = try ctx.arena.alloc(vxfw.SubSurface, 1);
+        const childrens = try ctx.arena.alloc(vxfw.SubSurface, 1 + self.texts.items.len);
 
         childrens[0] = text_subSurface;
+
+        var idx: usize = 1;
+        var last_len: usize = 0; 
+        const offset: usize = 1;
+
+        for(self.texts.items) |te| {
+            const prev_sub_surface: vxfw.SubSurface = childrens[idx - 1];
+            const tt: vxfw.Text = .{.text = te};
+            var t: vxfw.SubSurface = undefined;
+            if (idx == 1) {
+                t = .{ .origin = .{ .col = 0, .row = prev_sub_surface.origin.row + 1}, .surface = try tt.draw(ctx)};
+                last_len = last_len + te.len;
+            } else {
+                t = .{ .origin = .{ .col = @intCast(last_len + offset), .row = prev_sub_surface.origin.row + 1}, .surface = try tt.draw(ctx)};
+                last_len = last_len + te.len + offset;
+            }
+            childrens[idx] = t;
+            idx = idx + 1;
+        }
 
         return .{
             .size = ctx.max.size(),
@@ -72,12 +95,20 @@ pub fn main() !void {
     defer app.deinit();
 
     const model = try allocator.create(Model);
-    defer allocator.destroy(model);
+    defer {
+        for(model.texts.items) |i| {
+            allocator.free(i);
+        }
+        model.texts.deinit();
+        allocator.destroy(model);
+    }
+
     model.* = .{
-        .counter = 10
+        .counter = 10,
+        .texts = std.ArrayList([]u8).init(allocator),
+        .allocator = allocator,
     };
 
     try app.run(model.widget(), .{});
-
 }
 
