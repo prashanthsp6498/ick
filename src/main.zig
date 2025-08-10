@@ -92,8 +92,21 @@ const Model = struct {
         var idx: usize = 1;
 
         for (self.text_texts.items) |i| {
-            const tt: vxfw.Text = .{ .text = i.text };
-            const t: vxfw.SubSurface = .{ .origin = .{ .col = i.col, .row = i.row }, .surface = try tt.draw(ctx) };
+            var tt: vxfw.Text = undefined;
+            const folder = "\u{1F4C1}";
+            if (idx == self.idx + 1) {
+                const aa = try std.fmt.allocPrint(ctx.arena, "{s} {s}", .{folder, i.text});
+                tt = .{ .text = aa, .style = .{ .bold = true, .bg = .{ .rgb = [3]u8 {40, 50, 20}}, .ul_style =  .single} };
+            } else {
+                tt = .{ .text = i.text };
+            }
+            var col: i17= i.col;
+            if (idx > self.idx + 1) {
+                col = i.col + @as(i17, folder.len);
+            } else {
+                col = i.col;
+            }
+            const t: vxfw.SubSurface = .{ .origin = .{ .col = col, .row = i.row }, .surface = try tt.draw(ctx) };
             childrens[idx] = t;
             idx +|= 1;
         }
