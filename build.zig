@@ -11,7 +11,7 @@ const BuildParams = struct {
             .target = self.target,
             .optimize = self.optimize,
             .b = self.b,
-            .exe_name = exe_name
+            .exe_name = exe_name,
         };
     }
 };
@@ -21,10 +21,31 @@ fn get_exe(params: BuildParams) struct { *std.Build.Module, *std.Build.Step.Comp
     const optimize = params.optimize;
     const b = params.b;
 
+    const exe_options = blk: {
+        const exe_options = b.addOptions();
+        exe_options.step.name = "ick exe options";
+        exe_options.addOption(bool, "debug_build", optimize == .Debug);
+
+        break :blk exe_options.createModule();
+    };
+
+    const logger_module = b.addModule("tracy", .{
+        .root_source_file = b.path("src/logger.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "exe_options", .module = exe_options },
+        },
+    });
+
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "exe_options", .module = exe_options },
+            .{ .name = "logger", .module = logger_module },
+        },
     });
 
     const exe = b.addExecutable(.{
@@ -47,7 +68,7 @@ pub fn build(b: *std.Build) void {
         .b = b,
         .optimize = optimize,
         .target = target,
-        .exe_name = "ick"
+        .exe_name = "ick",
     };
 
     const module = get_exe(build_params);

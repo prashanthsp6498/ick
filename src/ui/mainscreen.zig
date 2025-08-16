@@ -3,7 +3,7 @@ const vaxis = @import("vaxis");
 const vxfw = vaxis.vxfw;
 const widgets = vaxis.widgets;
 const screen = @import("screen.zig");
-const logger = @import("../logger.zig").Logger;
+const logger = @import("logger").Logger;
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -11,7 +11,7 @@ const Event = union(enum) {
     focus_in,
 };
 
-pub fn entry(params: struct { allocator: std.mem.Allocator, log: logger }) !void {
+pub fn entry(params: struct { allocator: std.mem.Allocator, log: *logger }) !void {
     const allocator = params.allocator;
     var app = try vxfw.App.init(allocator);
     defer app.deinit();
