@@ -64,42 +64,4 @@ pub const Screen_ = struct {
             },
         });
     }
-
-    pub fn getRootDirSize(self: *const Screen_) !u8 {
-        var dir = try std.fs.cwd().openDir(self.root_dir_name, .{ .iterate = true });
-        defer dir.close();
-        var total_size: u8 = 0;
-
-        var it = dir.iterate();
-        while (try it.next()) |entry| {
-            _ = entry.name;
-            total_size += 1;
-        }
-
-        return total_size;
-    }
-
-    pub fn getRootDirFolder(self: *const Screen_, allocator: std.mem.Allocator) ![][]const u8 {
-        var file_list = std.ArrayList([]const u8).init(allocator);
-        defer file_list.deinit();
-
-        var dir = try std.fs.cwd().openDir(self.root_dir_name, .{ .iterate = true });
-        defer dir.close();
-
-        var it = dir.iterate();
-        while (try it.next()) |entry| {
-            const file = try allocator.dupe(u8, entry.name);
-            try file_list.append(file);
-        }
-
-        return file_list.toOwnedSlice();
-    }
-
-    pub fn getCurrDirName(self: *const Screen_) []const u8 {
-        return self.curr_dir_name;
-    }
-
-    pub fn getChildDirName(self: *const Screen_) []const u8 {
-        return self.child_dir_name;
-    }
 };
