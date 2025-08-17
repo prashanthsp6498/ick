@@ -10,9 +10,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var log = try logger.init() ;
+    var log = try logger.init();
     defer log.deinit();
-    
 
     log.info("Application started", .{});
     defer log.info("Application stopped", .{});
