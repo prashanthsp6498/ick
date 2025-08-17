@@ -4,6 +4,7 @@ const vxfw = vaxis.vxfw;
 const widgets = vaxis.widgets;
 const screen = @import("screen.zig");
 const logger = @import("logger").Logger;
+pub const ctlseqs = vaxis.ctlseqs;
 
 const Event = union(enum) {
     key_press: vaxis.Key,
@@ -104,4 +105,23 @@ pub fn entry(params: struct { allocator: std.mem.Allocator, log: *logger }) !voi
 
         try vx.render(tty.anyWriter());
     }
+}
+
+
+pub fn recover() void {
+    const reset: []const u8 = ctlseqs.csi_u_pop ++
+        ctlseqs.mouse_reset ++
+        ctlseqs.bp_reset ++
+        ctlseqs.rmcup ++ 
+        ctlseqs.sgr_reset;
+
+    var log = logger.init() catch { @panic("adf");};
+    log.debug("crashed, run `reset` for complete terminal reset", .{});
+
+    if (vaxis.tty.global_tty) |gty| {
+        gty.anyWriter().writeAll(reset) catch {};
+
+        gty.deinit();
+    }
+
 }
