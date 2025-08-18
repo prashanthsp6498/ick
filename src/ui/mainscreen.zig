@@ -3,7 +3,6 @@ const vaxis = @import("vaxis");
 const vxfw = vaxis.vxfw;
 const widgets = vaxis.widgets;
 const screen = @import("screen.zig");
-const logger = @import("logger").Logger;
 pub const ctlseqs = vaxis.ctlseqs;
 
 const Event = union(enum) {
@@ -12,8 +11,7 @@ const Event = union(enum) {
     focus_in,
 };
 
-pub fn entry(params: struct { allocator: std.mem.Allocator, log: *logger }) !void {
-    const allocator = params.allocator;
+pub fn entry(allocator: std.mem.Allocator) !void {
     var app = try vxfw.App.init(allocator);
     defer app.deinit();
 
@@ -115,8 +113,7 @@ pub fn recover() void {
         ctlseqs.rmcup ++ 
         ctlseqs.sgr_reset;
 
-    var log = logger.init() catch { @panic("adf");};
-    log.debug("crashed, run `reset` for complete terminal reset", .{});
+    std.log.err("crashed, run `reset` for complete terminal reset", .{});
 
     if (vaxis.tty.global_tty) |gty| {
         gty.anyWriter().writeAll(reset) catch {};
