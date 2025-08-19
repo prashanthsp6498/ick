@@ -121,3 +121,23 @@ pub const Scroll = struct {
         }
     }
 };
+
+pub fn keybindings(key: vaxis.Key, scroll_offset: *u16, vx: *vaxis.Vaxis) !bool {
+    if (key.matches('c', .{ .ctrl = true }) or key.matches('q', .{})) {
+        return true;
+    } else if (key.matches('l', .{ .ctrl = true })) {
+        vx.queueRefresh();
+    } else if (key.matches('j', .{})) {
+        scroll_offset.* += 1;
+    } else if (key.matches('k', .{})) {
+        if (scroll_offset.* > 0) {
+            scroll_offset.* -= 1;
+        }
+    } else if (key.matches('g', .{ .shift = true })) {
+        if (scroll_offset.* > 0) {
+            scroll_offset.* = 0;
+        }
+    }
+
+    return false;
+}

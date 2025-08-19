@@ -30,7 +30,7 @@ pub fn entry(allocator: std.mem.Allocator) !void {
     try vx.enterAltScreen(tty.anyWriter());
     try vx.queryTerminal(tty.anyWriter(), 1 * std.time.ns_per_s);
 
-    var middle_scroll_offset: u16 = 0;
+    var scroll_offset: u16 = 0;
 
     while (true) {
         const event = loop.nextEvent();
@@ -54,27 +54,14 @@ pub fn entry(allocator: std.mem.Allocator) !void {
         var scroll = screen.Scroll.initscroll(win.height, &files);
         switch (event) {
             .key_press => |key| {
-                if (key.matches('c', .{ .ctrl = true }) or key.matches('q', .{})) {
-                    break;
-                } else if (key.matches('l', .{ .ctrl = true })) {
-                    vx.queueRefresh();
-                } else if (key.matches('j', .{})) {
-                    middle_scroll_offset += 1;
-                } else if (key.matches('k', .{})) {
-                    if (middle_scroll_offset > 0) {
-                        middle_scroll_offset -= 1;
-                    }
-                } else if (key.matches('g', .{ .shift = true })) {
-                    if (middle_scroll_offset > 0) {
-                        middle_scroll_offset = 0;
-                    }
-                }
+                const shouldQuit = try screen.keybindings(key, &scroll_offset, &vx);
+                if (shouldQuit) break;
             },
             .winsize => |ws| try vx.resize(allocator, tty.anyWriter(), ws),
             else => {},
         }
 
-        try scroll.makescroll(middle_scroll_offset, middle_panel);
+        try scroll.makescroll(scroll_offset, middle_panel);
 
         try vx.render(tty.anyWriter());
     }
