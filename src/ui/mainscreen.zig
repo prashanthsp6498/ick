@@ -14,21 +14,6 @@ const Event = union(enum) {
 pub fn entry(allocator: std.mem.Allocator) !void {
     var app = try vxfw.App.init(allocator);
     defer app.deinit();
-    var tty = try vaxis.Tty.init();
-    defer tty.deinit();
-    var vx = try vaxis.init(allocator, .{});
-    defer vx.deinit(allocator, tty.anyWriter());
-
-    var loop: vaxis.Loop(Event) = .{
-        .tty = &tty,
-        .vaxis = &vx,
-    };
-    try loop.init();
-    try loop.start();
-    defer loop.stop();
-
-    try vx.enterAltScreen(tty.anyWriter());
-    try vx.queryTerminal(tty.anyWriter(), 1 * std.time.ns_per_s);
 
     const screen_instance = try allocator.create(screen.ViewScreen);
     defer allocator.destroy(screen_instance);
@@ -42,7 +27,6 @@ pub fn entry(allocator: std.mem.Allocator) !void {
         .allocator = allocator,
     };
 
-    try vx.render(tty.anyWriter());
     try app.run(screen_instance.widget(), .{});
 }
 
