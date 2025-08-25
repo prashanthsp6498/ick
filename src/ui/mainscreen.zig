@@ -33,41 +33,20 @@ pub fn entry(params: struct { allocator: std.mem.Allocator, log: *logger }) !voi
     try vx.enterAltScreen(tty.anyWriter());
     try vx.queryTerminal(tty.anyWriter(), 1 * std.time.ns_per_s);
 
-    var scroll_offset: u16 = 0;
+    const screen_instance = try allocator.create(screen.ViewScreen);
+    defer allocator.destroy(screen_instance);
 
-    while (true) {
-        const event = loop.nextEvent();
-        const win = vx.window();
-        win.clear();
+    screen_instance.* = .{
+        .left_header = .{ .text = "Root" },
+        .right_header = .{ .text = "child" },
+        .middle_header = .{ .text = "curr" },
+        .main_split = .{ .lhs = undefined, .rhs = undefined, .width = 10 },
+        .right_split = .{ .lhs = undefined, .rhs = undefined, .width = 10 },
+        .allocator = allocator,
+    };
 
-        const screen_size = screen.Screen_.getScreenSizes(win);
-        var screen_instance = screen.Screen_.initscreen(win, screen_size);
-
-        const middle_panel = try screen_instance.createWindows();
-
-        var fs = folder.File.init(allocator);
-        var files = try fs.currDir();
-        defer {
-            for (files.curr) |f| {
-                allocator.free(f);
-            }
-            allocator.free(files.curr);
-        }
-
-        var scroll = screen.Scroll.initscroll(win.height, &files);
-        switch (event) {
-            .key_press => |key| {
-                const shouldQuit = try screen.keybindings(key, &scroll_offset, &vx);
-                if (shouldQuit) break;
-            },
-            .winsize => |ws| try vx.resize(allocator, tty.anyWriter(), ws),
-            else => {},
-        }
-
-        try scroll.makescroll(scroll_offset, middle_panel);
-
-        try vx.render(tty.anyWriter());
-    }
+    try vx.render(tty.anyWriter());
+    try app.run(screen_instance.widget(), .{});
 }
 
 pub fn recover() void {

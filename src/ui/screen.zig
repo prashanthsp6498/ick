@@ -6,82 +6,67 @@ const cwd = std.fs.cwd();
 
 pub const ScreenSize = struct { left_width: u16, middle_width: u16, right_width: u16 };
 
-pub const Screen_ = struct {
-    win: vaxis.Window,
-    screenSize: ScreenSize,
+pub const ViewScreen = struct {
+    main_split: vxfw.SplitView,
+    right_split: vxfw.SplitView,
+    left_header: vxfw.Text,
+    right_header: vxfw.Text,
+    middle_header: vxfw.Text,
+    children: [3]vxfw.SubSurface = undefined,
+    allocator: std.mem.Allocator,
 
-    const color_idx: u8 = 140;
-    const style: vaxis.Style = .{
-        .fg = .{ .index = color_idx },
-    };
-
-    pub fn initscreen(win: vaxis.Window, screenSize: ScreenSize) Screen_ {
+    pub fn widget(self: *ViewScreen) vxfw.Widget {
         return .{
-            .win = win,
-            .screenSize = screenSize,
+            .userdata = self,
+            .eventHandler = ViewScreen.eventHandler,
+            .drawFn = ViewScreen.drawFn,
         };
     }
 
-    pub fn getScreenSizes(win: vaxis.Window) ScreenSize {
-        const left_width = win.width / 4;
-        const right_width = win.width / 4;
-        const middle_width = win.width - left_width - right_width;
-        return .{ .left_width = left_width, .right_width = right_width, .middle_width = middle_width };
-    }
+    fn eventHandler(ptr: *anyopaque, ctx: *vxfw.EventContext, event: vxfw.Event) anyerror!void {
+        const self: *ViewScreen = @ptrCast(@alignCast(ptr));
+        switch (event) {
+            .init => {
+                // Middle <-> Right
+                self.right_split.lhs = self.middle_header.widget();
+                self.right_split.rhs = self.right_header.widget();
 
-    pub fn createWindows(self: *Screen_) !vaxis.Window {
-        const left_panel = self.createLeftPanel(self.win, self.screenSize);
-        _ = left_panel.printSegment(.{ .text = "Root Folder" }, .{ .row_offset = 0, .col_offset = 1 });
-
-        const right_panel = self.createRightPanel(self.win, self.screenSize);
-        _ = right_panel.printSegment(.{ .text = "Child Folder" }, .{ .row_offset = 0, .col_offset = 1 });
-
-        const middle_panel = self.createMiddlePanel(self.win, self.screenSize);
-        _ = middle_panel.printSegment(.{ .text = "Current Folder" }, .{ .row_offset = 0, .col_offset = 1 });
-
-        return middle_panel;
-    }
-
-    fn createLeftPanel(self: *const Screen_, win: vaxis.Window, sizes: ScreenSize) vaxis.Window {
-        _ = self;
-        return win.child(.{
-            .x_off = 0,
-            .y_off = 0,
-            .width = sizes.left_width,
-            .height = win.height,
-            .border = .{
-                .where = .all,
-                .style = style,
+                // Left <-> Middle <-> Right
+                self.main_split.lhs = self.left_header.widget();
+                self.main_split.rhs = self.right_split.widget();
             },
-        });
+            .key_press => |key| {
+                if (key.matches('c', .{ .ctrl = true }) or key.matches('q', .{})) {
+                    ctx.quit = true;
+                    return;
+                }
+            },
+            else => {},
+        }
     }
 
-    fn createMiddlePanel(self: *const Screen_, win: vaxis.Window, sizes: ScreenSize) vaxis.Window {
-        _ = self;
-        return win.child(.{
-            .x_off = sizes.left_width,
-            .y_off = 0,
-            .width = sizes.middle_width,
-            .height = win.height,
-            .border = .{
-                .where = .all,
-                .style = style,
-            },
-        });
-    }
+    fn drawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
+        const self: *ViewScreen = @ptrCast(@alignCast(ptr));
+        //const surf = try self.main_split.widget().draw(ctx);
+        const total_width = ctx.max.size().width;
+        const panel = total_width / 3;
 
-    fn createRightPanel(self: *const Screen_, win: vaxis.Window, sizes: ScreenSize) vaxis.Window {
-        _ = self;
-        return win.child(.{
-            .x_off = sizes.left_width + sizes.middle_width,
-            .y_off = 0,
-            .width = sizes.right_width,
-            .height = win.height,
-            .border = .{
-                .where = .all,
-                .style = style,
-            },
-        });
+        const left_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel }, .min = .{ .height = 0, .width = 0 } };
+        const middle_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel }, .min = .{ .height = 0, .width = 0 } };
+        const right_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel * panel }, .min = .{ .height = 0, .width = 0 } };
+
+        const left_surface = try self.left_header.widget().draw(left_ctx);
+        const middle_surface = try self.middle_header.widget().draw(middle_ctx);
+        const right_surface = try self.right_header.widget().draw(right_ctx);
+
+        const left_panel = 0;
+        const middle_panel = left_panel + panel;
+        const right_panel = total_width - (middle_panel);
+        self.children[0] = .{ .origin = .{ .row = 0, .col = left_panel }, .surface = left_surface };
+        self.children[1] = .{ .origin = .{ .row = 0, .col = middle_panel }, .surface = middle_surface };
+        self.children[2] = .{ .origin = .{ .row = 0, .col = right_panel }, .surface = right_surface };
+
+        return .{ .size = ctx.max.size(), .widget = self.widget(), .buffer = &.{}, .children = &self.children };
     }
 };
 
