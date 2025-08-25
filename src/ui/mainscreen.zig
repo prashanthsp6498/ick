@@ -14,6 +14,19 @@ const Event = union(enum) {
 pub fn entry(allocator: std.mem.Allocator) !void {
     var app = try vxfw.App.init(allocator);
     defer app.deinit();
+
+    const screen_instance = try allocator.create(screen.ViewScreen);
+    defer allocator.destroy(screen_instance);
+
+    screen_instance.* = .{
+        .left_header = .{ .text = "Root" },
+        .right_header = .{ .text = "child" },
+        .middle_header = .{ .text = "curr" },
+        .main_split = .{ .lhs = undefined, .rhs = undefined, .width = 10 },
+        .right_split = .{ .lhs = undefined, .rhs = undefined, .width = 10 },
+        .allocator = allocator,
+    };
+
     try app.run(screen_instance.widget(), .{});
 }
 
