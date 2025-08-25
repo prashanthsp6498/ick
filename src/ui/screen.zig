@@ -49,22 +49,30 @@ pub const ViewScreen = struct {
         const self: *ViewScreen = @ptrCast(@alignCast(ptr));
         //const surf = try self.main_split.widget().draw(ctx);
         const total_width = ctx.max.size().width;
+        const total_height = ctx.max.size().height - 2;
         const panel = total_width / 3;
 
-        const left_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel }, .min = .{ .height = 0, .width = 0 } };
-        const middle_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel }, .min = .{ .height = 0, .width = 0 } };
-        const right_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel * panel }, .min = .{ .height = 0, .width = 0 } };
+        const size:vxfw.Size = .{ .height = total_height, .width = panel };
+        const left_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel }, .min = size };
+        const middle_ctx = left_ctx;
+        const right_ctx = left_ctx;
 
-        const left_surface = try self.left_header.widget().draw(left_ctx);
-        const middle_surface = try self.middle_header.widget().draw(middle_ctx);
-        const right_surface = try self.right_header.widget().draw(right_ctx);
+        const parent: vxfw.Border = .{ .child = self.left_header.widget(),  .labels = &[_]vxfw.Border.BorderLabel{ .{ .text = "parent", .alignment = .top_center}, .{ .text = "permissions", .alignment = .bottom_center}}};
+        const parent_surface = try parent.widget().draw(left_ctx);
+
+        const pwd: vxfw.Border = .{ .child = self.left_header.widget(),  .labels = &[_]vxfw.Border.BorderLabel{ .{ .text = "pwd", .alignment = .top_center}}};
+        const pwd_surface = try pwd.widget().draw(middle_ctx);
+
+        const preview: vxfw.Border = .{ .child = self.left_header.widget(),  .labels = &[_]vxfw.Border.BorderLabel{ .{ .text = "preview", .alignment = .top_center}}};
+        const preview_surface = try preview.widget().draw(right_ctx);
+
 
         const left_panel = 0;
         const middle_panel = left_panel + panel;
         const right_panel = total_width - (middle_panel);
-        self.children[0] = .{ .origin = .{ .row = 0, .col = left_panel }, .surface = left_surface };
-        self.children[1] = .{ .origin = .{ .row = 0, .col = middle_panel }, .surface = middle_surface };
-        self.children[2] = .{ .origin = .{ .row = 0, .col = right_panel }, .surface = right_surface };
+        self.children[0] = .{ .origin = .{ .row = 0, .col = left_panel }, .surface = parent_surface };
+        self.children[1] = .{ .origin = .{ .row = 0, .col = middle_panel }, .surface = pwd_surface };
+        self.children[2] = .{ .origin = .{ .row = 0, .col = right_panel }, .surface = preview_surface };
 
         return .{ .size = ctx.max.size(), .widget = self.widget(), .buffer = &.{}, .children = &self.children };
     }
