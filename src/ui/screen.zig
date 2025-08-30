@@ -4,7 +4,187 @@ const vxfw = vaxis.vxfw;
 const files = @import("../core/core.zig");
 const cwd = std.fs.cwd();
 
-pub const ScreenSize = struct { left_width: u16, middle_width: u16, right_width: u16 };
+pub const ScreenSize = struct {
+    left_width: u16,
+    middle_width: u16,
+    right_width: u16,
+};
+
+const FileUI = struct {
+    text: []const u8,
+    idx: usize,
+    wrap_lines: bool = true,
+    isSelected: bool = false,
+
+    pub fn widget(self: *FileUI) vxfw.Widget {
+        return .{
+            .userdata = self,
+            .drawFn = FileUI.typeErasedDrawFn,
+        };
+    }
+
+    pub fn select(self: *FileUI) void {
+        self.isSelected = true;
+    }
+
+    pub fn deSelect(self: *FileUI) void {
+        self.isSelected = false;
+    }
+
+    fn typeErasedDrawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
+        const self: *FileUI = @ptrCast(@alignCast(ptr));
+
+        const idx_text = try std.fmt.allocPrint(ctx.arena, "{d: >4}", .{self.idx});
+        const style: vaxis.Style = .{ .bg = .{ .rgb = [3]u8{ 10, 20, 30 } } };
+
+        const idx_widget: vxfw.Text = .{ .text = idx_text, .style = if (self.isSelected) style else .{} };
+
+        const idx_surf: vxfw.SubSurface = .{
+            .origin = .{ .row = 0, .col = 0 },
+            .surface = try idx_widget.draw(ctx.withConstraints(
+                .{ .width = 1, .height = 1 },
+                .{ .width = 4, .height = 1 },
+            )),
+        };
+
+        const text_widget: vxfw.Text = .{
+            .text = self.text,
+            .softwrap = self.wrap_lines,
+            .style = if (self.isSelected) style else .{},
+        };
+
+        const text_surf: vxfw.SubSurface = .{
+            .origin = .{ .row = 0, .col = 6 },
+            .surface = try text_widget.draw(ctx.withConstraints(
+                ctx.min,
+                if (self.wrap_lines)
+                    .{ .width = ctx.min.width -| 6, .height = ctx.max.height }
+                else
+                    .{ .width = if (ctx.max.width) |w| w - 6 else null, .height = ctx.max.height },
+            )),
+        };
+
+        const children = try ctx.arena.alloc(vxfw.SubSurface, 2);
+        children[0] = idx_surf;
+        children[1] = text_surf;
+
+        return .{
+            .size = .{
+                .width = 6 + text_surf.surface.size.width,
+                .height = @max(idx_surf.surface.size.height, text_surf.surface.size.height),
+            },
+            .widget = self.widget(),
+            .buffer = &.{},
+            .children = children,
+        };
+    }
+};
+
+pub const DirView = struct {
+    scroll_bars: vxfw.ScrollBars,
+    files: std.ArrayList(FileUI),
+    current_select: usize = 0,
+
+    pub fn init(allocator: std.mem.Allocator) !*DirView {
+        const data = try allocator.create(DirView);
+        data.* = .{
+            .scroll_bars = .{
+                .scroll_view = .{
+                    .children = .{
+                        .builder = .{
+                            .userdata = data,
+                            .buildFn = widgetBuilder,
+                        },
+                    },
+                },
+            },
+            .files = std.ArrayList(FileUI).init(allocator),
+        };
+
+        for (0..40) |i| {
+            try data.*.files.append(.{
+                .text = "File Name",
+                .idx = i,
+            });
+        }
+
+        data.*.files.items[data.current_select].select();
+
+        return data;
+    }
+
+    pub fn scrollDown(self: *DirView) void {
+        if (self.current_select + 1 < self.files.items.len) {
+            self.current_select = self.current_select + 1;
+            _ = self.scroll_bars.scroll_view.scroll.linesDown(1);
+        }
+    }
+
+    pub fn scrollUp(self: *DirView) void {
+        const next: i32 = @intCast(self.current_select);
+        if (next - 1 >= 0) {
+            self.current_select = self.current_select - 1;
+            _ = self.scroll_bars.scroll_view.scroll.linesUp(1);
+        }
+    }
+
+    fn widgetBuilder(ptr: *const anyopaque, idx: usize, _: usize) ?vxfw.Widget {
+        const self: *const DirView = @ptrCast(@alignCast(ptr));
+        if (idx >= self.files.items.len) return null;
+
+        return self.files.items[idx].widget();
+    }
+
+    pub fn widget(self: *DirView) vxfw.Widget {
+        return .{
+            .userdata = self,
+            .eventHandler = eventHandler,
+            .drawFn = drawFn,
+        };
+    }
+
+    pub fn eventHandler(userdata: *anyopaque, ctx: *vxfw.EventContext, event: vxfw.Event) !void {
+        const self: *DirView = @ptrCast(@alignCast(userdata));
+
+        switch (event) {
+            .key_press => |key| {
+                if (key.matches('j', .{})) {
+                    self.files.items[self.current_select].deSelect();
+                    self.scrollDown();
+                    self.files.items[self.current_select].select();
+                    ctx.consumeAndRedraw();
+                } else if (key.matches('k', .{})) {
+                    self.files.items[self.current_select].deSelect();
+                    self.scrollUp();
+                    self.files.items[self.current_select].select();
+
+                    ctx.consumeAndRedraw();
+                }
+            },
+            else => {},
+        }
+    }
+
+    pub fn drawFn(userdata: *anyopaque, ctx: vxfw.DrawContext) !vxfw.Surface {
+        const self: *DirView = @ptrCast(@alignCast(userdata));
+        const max = ctx.max.size();
+
+        const scroll_view: vxfw.SubSurface = .{
+            .origin = .{ .row = 0, .col = 0 },
+            .surface = try self.scroll_bars.draw(ctx),
+        };
+
+        const children = try ctx.arena.alloc(vxfw.SubSurface, 1);
+        children[0] = scroll_view;
+
+        return .{
+            .size = max,
+            .widget = self.widget(),
+            .buffer = &.{},
+            .children = children,
+        };
+    }
+};
 
 pub const ViewScreen = struct {
     main_split: vxfw.SplitView,
@@ -14,6 +194,16 @@ pub const ViewScreen = struct {
     middle_header: vxfw.Text,
     children: [3]vxfw.SubSurface = undefined,
     allocator: std.mem.Allocator,
+    dirView: *DirView,
+
+    pub fn init(allocator: std.mem.Allocator) void {
+        return .{
+            .left_header = .{ .text = "Root" },
+            .right_header = .{ .text = "child" },
+            .middle_header = .{ .text = "curr" },
+            .allocator = allocator,
+        };
+    }
 
     pub fn widget(self: *ViewScreen) vxfw.Widget {
         return .{
@@ -25,112 +215,68 @@ pub const ViewScreen = struct {
 
     fn eventHandler(ptr: *anyopaque, ctx: *vxfw.EventContext, event: vxfw.Event) anyerror!void {
         const self: *ViewScreen = @ptrCast(@alignCast(ptr));
+        // _ = self;
         switch (event) {
-            .init => {
-                // Middle <-> Right
-                self.right_split.lhs = self.middle_header.widget();
-                self.right_split.rhs = self.right_header.widget();
-
-                // Left <-> Middle <-> Right
-                self.main_split.lhs = self.left_header.widget();
-                self.main_split.rhs = self.right_split.widget();
-            },
+            .init => {},
             .key_press => |key| {
                 if (key.matches('c', .{ .ctrl = true }) or key.matches('q', .{})) {
                     ctx.quit = true;
                     return;
+                } else {
+                    try DirView.eventHandler(self.dirView, ctx, event);
                 }
             },
             else => {},
         }
     }
 
+    inline fn getPanel(self: *ViewScreen, title: []const u8, widgetComp: vxfw.Widget, ctx: vxfw.DrawContext, offset: u16) !vxfw.SubSurface {
+        _ = self;
+        const max_width = ctx.max.size().width;
+        const max_height = ctx.max.size().height - 2;
+        const panel_width = max_width / 3;
+        const size: vxfw.Size = .{ .height = max_height, .width = panel_width };
+
+        const left_ctx = vxfw.DrawContext{
+            .arena = ctx.arena,
+            .cell_size = ctx.cell_size,
+            .max = .{
+                .height = ctx.max.height,
+                .width = panel_width,
+            },
+            .min = size,
+        };
+
+        const parent: vxfw.Border = .{
+            .child = widgetComp,
+            .labels = &[_]vxfw.Border.BorderLabel{
+                .{
+                    .text = title,
+                    .alignment = .top_center,
+                },
+                .{
+                    .text = "permissions",
+                    .alignment = .bottom_center,
+                },
+            },
+        };
+        const parent_surface = try parent.widget().draw(left_ctx);
+        const panel_offset = panel_width * offset;
+        return .{ .origin = .{ .row = 0, .col = panel_offset }, .surface = parent_surface };
+    }
+
     fn drawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
         const self: *ViewScreen = @ptrCast(@alignCast(ptr));
-        //const surf = try self.main_split.widget().draw(ctx);
-        const total_width = ctx.max.size().width;
-        const total_height = ctx.max.size().height - 2;
-        const panel = total_width / 3;
 
-        const size:vxfw.Size = .{ .height = total_height, .width = panel };
-        const left_ctx = vxfw.DrawContext{ .arena = ctx.arena, .cell_size = ctx.cell_size, .max = .{ .height = ctx.max.height, .width = panel }, .min = size };
-        const middle_ctx = left_ctx;
-        const right_ctx = left_ctx;
+        self.children[0] = try self.getPanel("parent", self.dirView.widget(), ctx, 0);
+        self.children[1] = try self.getPanel("pwd", self.left_header.widget(), ctx, 1);
+        self.children[2] = try self.getPanel("preview", self.left_header.widget(), ctx, 2);
 
-        const parent: vxfw.Border = .{ .child = self.left_header.widget(),  .labels = &[_]vxfw.Border.BorderLabel{ .{ .text = "parent", .alignment = .top_center}, .{ .text = "permissions", .alignment = .bottom_center}}};
-        const parent_surface = try parent.widget().draw(left_ctx);
-
-        const pwd: vxfw.Border = .{ .child = self.left_header.widget(),  .labels = &[_]vxfw.Border.BorderLabel{ .{ .text = "pwd", .alignment = .top_center}}};
-        const pwd_surface = try pwd.widget().draw(middle_ctx);
-
-        const preview: vxfw.Border = .{ .child = self.left_header.widget(),  .labels = &[_]vxfw.Border.BorderLabel{ .{ .text = "preview", .alignment = .top_center}}};
-        const preview_surface = try preview.widget().draw(right_ctx);
-
-
-        const left_panel = 0;
-        const middle_panel = left_panel + panel;
-        const right_panel = total_width - (middle_panel);
-        self.children[0] = .{ .origin = .{ .row = 0, .col = left_panel }, .surface = parent_surface };
-        self.children[1] = .{ .origin = .{ .row = 0, .col = middle_panel }, .surface = pwd_surface };
-        self.children[2] = .{ .origin = .{ .row = 0, .col = right_panel }, .surface = preview_surface };
-
-        return .{ .size = ctx.max.size(), .widget = self.widget(), .buffer = &.{}, .children = &self.children };
-    }
-};
-
-pub const Scroll = struct {
-    height: u16 = 0,
-    max_height: u8,
-    content_height: u16,
-    files: *files.folderStructure,
-    middle_scroll: u16 = 0,
-
-    pub fn initscroll(height: u16, file_struct: *files.folderStructure) Scroll {
         return .{
-            .height = height,
-            .files = file_struct,
-            .max_height = 0,
-            .content_height = 0,
+            .size = ctx.max.size(),
+            .widget = self.widget(),
+            .buffer = &.{},
+            .children = &self.children,
         };
     }
-
-    pub fn makescroll(self: *Scroll, middle_scroll: u16, middle_panel: vaxis.Window) !void {
-        self.content_height = @as(u16, @intCast(self.files.curr.len + 3));
-        const max_scroll = if (self.content_height > self.height) self.content_height - self.height else 0;
-
-        if (middle_scroll > max_scroll) {
-            self.middle_scroll = max_scroll;
-        } else {
-            self.middle_scroll = middle_scroll;
-        }
-
-        var i: u16 = 3;
-        var file_index: usize = self.middle_scroll;
-
-        while (file_index < self.files.curr.len and i < self.height) {
-            _ = middle_panel.printSegment(.{ .text = self.files.curr[file_index] }, .{ .row_offset = i, .col_offset = 3 });
-            i += 1;
-            file_index += 1;
-        }
-    }
 };
-
-pub fn keybindings(key: vaxis.Key, scroll_offset: *u16, vx: *vaxis.Vaxis) !bool {
-    if (key.matches('c', .{ .ctrl = true }) or key.matches('q', .{})) {
-        return true;
-    } else if (key.matches('l', .{ .ctrl = true })) {
-        vx.queueRefresh();
-    } else if (key.matches('j', .{})) {
-        scroll_offset.* += 1;
-    } else if (key.matches('k', .{})) {
-        if (scroll_offset.* > 0) {
-            scroll_offset.* -= 1;
-        }
-    } else if (key.matches('g', .{ .shift = true })) {
-        if (scroll_offset.* > 0) {
-            scroll_offset.* = 0;
-        }
-    }
-
-    return false;
-}
