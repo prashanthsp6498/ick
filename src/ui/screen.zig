@@ -4,17 +4,12 @@ const vxfw = vaxis.vxfw;
 const files = @import("../core/core.zig");
 const cwd = std.fs.cwd();
 
-pub const ScreenSize = struct {
-    left_width: u16,
-    middle_width: u16,
-    right_width: u16,
-};
-
 const FileUI = struct {
     text: []const u8,
     idx: usize,
     wrap_lines: bool = true,
     isSelected: bool = false,
+    style: vaxis.Style = .{ .bg = .{ .rgb = [3]u8{ 69, 159, 161 } } },
 
     pub fn widget(self: *FileUI) vxfw.Widget {
         return .{
@@ -34,27 +29,15 @@ const FileUI = struct {
     fn typeErasedDrawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
         const self: *FileUI = @ptrCast(@alignCast(ptr));
 
-        const idx_text = try std.fmt.allocPrint(ctx.arena, "{d: >4}", .{self.idx});
-        const style: vaxis.Style = .{ .bg = .{ .rgb = [3]u8{ 10, 20, 30 } } };
-
-        const idx_widget: vxfw.Text = .{ .text = idx_text, .style = if (self.isSelected) style else .{} };
-
-        const idx_surf: vxfw.SubSurface = .{
-            .origin = .{ .row = 0, .col = 0 },
-            .surface = try idx_widget.draw(ctx.withConstraints(
-                .{ .width = 1, .height = 1 },
-                .{ .width = 4, .height = 1 },
-            )),
-        };
-
         const text_widget: vxfw.Text = .{
             .text = self.text,
             .softwrap = self.wrap_lines,
-            .style = if (self.isSelected) style else .{},
+            .style = if (self.isSelected) self.style else .{},
+            .text_align = .left,
         };
 
         const text_surf: vxfw.SubSurface = .{
-            .origin = .{ .row = 0, .col = 6 },
+            .origin = .{ .row = 0, .col = 1 },
             .surface = try text_widget.draw(ctx.withConstraints(
                 ctx.min,
                 if (self.wrap_lines)
@@ -64,14 +47,13 @@ const FileUI = struct {
             )),
         };
 
-        const children = try ctx.arena.alloc(vxfw.SubSurface, 2);
-        children[0] = idx_surf;
-        children[1] = text_surf;
+        const children = try ctx.arena.alloc(vxfw.SubSurface, 1);
+        children[0] = text_surf;
 
         return .{
             .size = .{
                 .width = 6 + text_surf.surface.size.width,
-                .height = @max(idx_surf.surface.size.height, text_surf.surface.size.height),
+                .height = text_surf.surface.size.height,
             },
             .widget = self.widget(),
             .buffer = &.{},
@@ -103,7 +85,7 @@ pub const DirView = struct {
 
         for (0..40) |i| {
             try data.*.files.append(.{
-                .text = "File Name",
+                .text = try std.fmt.allocPrint(allocator, "File Name {d}", .{i}),
                 .idx = i,
             });
         }
@@ -234,7 +216,12 @@ pub const ViewScreen = struct {
         _ = self;
         const max_width = ctx.max.size().width;
         const max_height = ctx.max.size().height - 2;
-        const panel_width = max_width / 3;
+        const panel_width = switch (offset) {
+            0 => max_width / 6,
+            1 => max_width - (max_width / 6) - (max_width / 3),
+            2 => max_width / 3,
+            else => max_width / 3,
+        };
         const size: vxfw.Size = .{ .height = max_height, .width = panel_width };
 
         const left_ctx = vxfw.DrawContext{
@@ -261,7 +248,13 @@ pub const ViewScreen = struct {
             },
         };
         const parent_surface = try parent.widget().draw(left_ctx);
-        const panel_offset = panel_width * offset;
+
+        const panel_offset = switch (offset) {
+            0 => 0,
+            1 => (max_width / 6),
+            2 => max_width - (max_width / 3),
+            else => max_width,
+        };
         return .{ .origin = .{ .row = 0, .col = panel_offset }, .surface = parent_surface };
     }
 
