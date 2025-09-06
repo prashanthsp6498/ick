@@ -15,10 +15,10 @@ pub fn entry(allocator: std.mem.Allocator) !void {
     var app = try vxfw.App.init(allocator);
     defer app.deinit();
 
-    const screen_instance = try allocator.create(screen.ViewScreen);
+    const screen_instance = try allocator.create(screen);
     defer allocator.destroy(screen_instance);
 
-    const dir_view = try allocator.create(screen.DirView);
+    const dir_view = try allocator.create(screen.dirview);
     defer allocator.destroy(dir_view);
 
     screen_instance.* = .{
@@ -28,7 +28,7 @@ pub fn entry(allocator: std.mem.Allocator) !void {
         .main_split = .{ .lhs = undefined, .rhs = undefined, .width = 10 },
         .right_split = .{ .lhs = undefined, .rhs = undefined, .width = 10 },
         .allocator = allocator,
-        .dirView = try screen.DirView.init(allocator),
+        .dirView = try screen.dirview.init(allocator),
     };
 
     try app.run(screen_instance.widget(), .{});
