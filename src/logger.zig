@@ -1,5 +1,6 @@
 const std = @import("std");
 const exe_options = @import("exe_options");
+const open_error = std.fs.File.OpenError;
 
 const log_file_name = "debug.log";
 
@@ -7,9 +8,10 @@ var file: ?std.fs.File = null;
 
 pub fn init() void {
     _ = std.log.scoped(.ick);
-    file = std.fs.cwd().openFile(log_file_name, .{ .mode = .read_write }) catch |er|
+    const cwd = std.fs.cwd();
+    file = cwd.openFile(log_file_name, .{ .mode = .read_write }) catch |er|
         switch (er) {
-            std.fs.File.OpenError.FileNotFound => std.fs.cwd().createFile(log_file_name, .{ .truncate = false }) catch return,
+            open_error.FileNotFound => cwd.createFile(log_file_name, .{ .truncate = false }) catch return,
             else => @panic("failed to create log file"),
         };
 

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-var version: std.SemanticVersion = .{ .major = 0, .minor = 0, .patch = 0, .build = "debug"};
+var version: std.SemanticVersion = .{ .major = 0, .minor = 0, .patch = 0, .build = "debug" };
 
 const BuildParams = struct {
     target: std.Build.ResolvedTarget,

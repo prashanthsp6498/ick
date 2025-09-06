@@ -1,6 +1,7 @@
 const std = @import("std");
 const vaxis = @import("vaxis");
 const vxfw = vaxis.vxfw;
+const allocator_error = std.mem.Allocator.Error;
 
 const file_ui = @This();
 
@@ -25,7 +26,7 @@ pub fn deSelect(self: *file_ui) void {
     self.isSelected = false;
 }
 
-fn typeErasedDrawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) std.mem.Allocator.Error!vxfw.Surface {
+fn typeErasedDrawFn(ptr: *anyopaque, ctx: vxfw.DrawContext) allocator_error!vxfw.Surface {
     const self: *file_ui = @ptrCast(@alignCast(ptr));
 
     const text_widget: vxfw.Text = .{

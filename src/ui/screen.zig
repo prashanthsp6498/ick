@@ -48,7 +48,14 @@ fn eventHandler(ptr: *anyopaque, ctx: *vxfw.EventContext, event: vxfw.Event) any
     }
 }
 
-inline fn getPanel(self: *screen, title: []const u8, widgetComp: vxfw.Widget, ctx: vxfw.DrawContext, offset: u16) !vxfw.SubSurface {
+/// create panel surface with specific width depends on offset i,e 0, 1 or 2
+inline fn getPanel(
+    self: *screen,
+    title: []const u8,
+    widgetComp: vxfw.Widget,
+    ctx: vxfw.DrawContext,
+    offset: u16,
+) !vxfw.SubSurface {
     _ = self;
     const max_width = ctx.max.size().width;
     const max_height = ctx.max.size().height - 2;

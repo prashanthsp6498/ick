@@ -3,6 +3,7 @@ const vaxis = @import("vaxis");
 const vxfw = vaxis.vxfw;
 const cwd = std.fs.cwd();
 const logger = @import("logger").Logger;
+const filed = @import("file.zig");
 
 pub const folderStructure = struct {
     curr: [][]const u8,
@@ -39,6 +40,22 @@ pub const File = struct {
             try folders.append(file);
         }
 
-        return folderStructure{ .curr = try folders.toOwnedSlice(), .parent = undefined, .child = undefined, .allocator = self.allocator };
+        return folderStructure{
+            .curr = try folders.toOwnedSlice(),
+            .parent = undefined,
+            .child = undefined,
+            .allocator = self.allocator,
+        };
     }
 };
+
+test "demo" {
+    var alloc = std.heap.DebugAllocator(.{}){};
+    const allocator = alloc.allocator();
+
+    const f = try filed.init(try std.fmt.allocPrint(allocator, ".", .{}), true, allocator);
+    // std.debug.print("path: {s}\n", .{f.path});
+    // std.debug.print("path parent: {s}\n", .{f.parent.?.path});
+    f.print();
+    std.debug.assert(true);
+}
